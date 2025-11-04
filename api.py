@@ -340,7 +340,6 @@ def sequential_thinking(id):
     goal = data.get('goal', '')
     total_thoughts = data.get('totalThoughts', 5)
 
-    # This function will be implemented in the next step
     thoughts, final_answer = generate_thoughts(id, prompt, goal, total_thoughts)
 
     if not thoughts:
