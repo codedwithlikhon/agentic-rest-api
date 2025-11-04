@@ -58,6 +58,33 @@ def generate_ai_response(chat_id, conversation_history):
         app.logger.error(f"Error calling minimax API: {str(e)}")
         return None
 
+def generate_thoughts(chat_id, prompt, goal, total_thoughts):
+    """Generate a sequence of thoughts to solve a problem."""
+    thoughts = []
+    conversation_history = [{'role': 'user', 'content': f"Problem: {prompt}\nGoal: {goal}"}]
+
+    for i in range(total_thoughts):
+        # Add previous thoughts to the conversation history for context
+        if i > 0:
+            last_thought = thoughts[-1]['content']
+            conversation_history.append({'role': 'assistant', 'content': last_thought})
+            conversation_history.append({'role': 'user', 'content': "What is the next step?"})
+
+        # Generate the next thought
+        ai_response = generate_ai_response(chat_id, conversation_history)
+        if not ai_response:
+            return None, None
+
+        thought = {'id': i + 1, 'content': ai_response}
+        thoughts.append(thought)
+
+    # Generate a final answer
+    conversation_history.append({'role': 'assistant', 'content': thoughts[-1]['content']})
+    conversation_history.append({'role': 'user', 'content': "Based on the previous thoughts, what is the final answer?"})
+    final_answer = generate_ai_response(chat_id, conversation_history)
+
+    return thoughts, final_answer
+
 # Projects endpoints
 @app.get('/v1/projects')
 @token_required
@@ -297,6 +324,59 @@ def generate_ai_reply(id):
     
     messages_db[message_id] = ai_message
     return jsonify(ai_message), 201
+
+@app.post('/v1/chats/<id>/ai/think')
+@token_required
+def sequential_thinking(id):
+    chat = chats_db.get(id)
+    if not chat:
+        return jsonify({'error': 'Chat not found'}), 404
+
+    data = request.get_json()
+    prompt = data.get('prompt')
+    if not prompt:
+        return jsonify({'error': 'prompt is required'}), 400
+
+    goal = data.get('goal', '')
+    total_thoughts = data.get('totalThoughts', 5)
+
+    # This function will be implemented in the next step
+    thoughts, final_answer = generate_thoughts(id, prompt, goal, total_thoughts)
+
+    if not thoughts:
+        return jsonify({'error': 'Failed to generate thoughts'}), 500
+
+    # Store thoughts in the in-memory database
+    for thought in thoughts:
+        message_id = generate_id('msg')
+        message = {
+            'id': message_id,
+            'chat_id': id,
+            'sender_id': 'ai_assistant',
+            'content': f"Thought {thought['id']}: {thought['content']}",
+            'type': 'text',
+            'created_at': datetime.utcnow().isoformat() + 'Z',
+            'metadata': {'model': 'minimax-m2', 'generated': True, 'is_thought': True}
+        }
+        messages_db[message_id] = message
+
+    # Store the final answer
+    message_id = generate_id('msg')
+    message = {
+        'id': message_id,
+        'chat_id': id,
+        'sender_id': 'ai_assistant',
+        'content': final_answer,
+        'type': 'text',
+        'created_at': datetime.utcnow().isoformat() + 'Z',
+        'metadata': {'model': 'minimax-m2', 'generated': True}
+    }
+    messages_db[message_id] = message
+
+    return jsonify({
+        'thoughts': thoughts,
+        'final_answer': final_answer
+    }), 200
 
 # System endpoints
 @app.get('/v1/system/health')

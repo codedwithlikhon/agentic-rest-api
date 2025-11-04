@@ -359,6 +359,47 @@ paths:
         '500':
           description: Failed to generate AI response
 
+  /v1/chats/{id}/ai/think:
+    post:
+      summary: Generate a sequence of thoughts to solve a problem
+      operationId: sequentialThinking
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - prompt
+              properties:
+                prompt:
+                  type: string
+                  description: The problem to solve.
+                goal:
+                  type: string
+                  description: The desired outcome.
+                totalThoughts:
+                  type: integer
+                  description: The number of thoughts to generate.
+                  default: 5
+      responses:
+        '200':
+          description: A sequence of thoughts and a final answer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequentialThinkingResponse'
+        '404':
+          description: Chat not found
+        '500':
+          description: Failed to generate thoughts
+
   /v1/system/health:
     get:
       summary: Health check
@@ -483,3 +524,21 @@ components:
           type: integer
         pages:
           type: integer
+
+    Thought:
+      type: object
+      properties:
+        id:
+          type: integer
+        content:
+          type: string
+
+    SequentialThinkingResponse:
+      type: object
+      properties:
+        thoughts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Thought'
+        final_answer:
+          type: string
