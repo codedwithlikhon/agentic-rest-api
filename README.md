@@ -1,35 +1,60 @@
-# API build configuration
-
-*Automatically synced with your [v0.app](https://v0.app) deployments*
+# Collaboration API
 
 [![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/likhonsheikhdev/v0-api-build-configuration)
 [![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/nLdwCeHL888)
 
-## Overview
+An extended REST API for projects and real-time chat with AI integration.
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+## Features
 
-## Deployment
+*   **Project Management:** Create, update, and manage projects.
+*   **Real-time Chat:** Real-time chat functionality with support for multiple participants.
+*   **AI Integration:** Integrated with the Minimax AI for intelligent responses.
+*   **Sequential Thinking:** A unique tool that allows the AI to break down complex problems into a series of thoughts.
 
-Your project is live at:
+## Getting Started
 
-**[https://vercel.com/likhonsheikhdev/v0-api-build-configuration](https://vercel.com/likhonsheikhdev/v0-api-build-configuration)**
+### Prerequisites
 
-## Build your app
+*   Python 3.8+
+*   pip
 
-Continue building your app on:
+### Installation
 
-**[https://v0.app/chat/nLdwCeHL888](https://v0.app/chat/nLdwCeHL888)**
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/your-username/your-repository.git
+    ```
+2.  Install the dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+3.  Set the `MINIMAX_API_KEY` environment variable:
+    ```bash
+    export MINIMAX_API_KEY='your-api-key'
+    ```
+4.  Run the application:
+    ```bash
+    python api.py
+    ```
 
-## How It Works
+## API Documentation
 
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+The complete API documentation can be found in the `/docs` directory. The OpenAPI specification is available in `docs/openapi.yaml`.
 
-## API Endpoints
+## Usage Examples
+
+### AI Reply
+
+**Endpoint:** `POST /v1/chats/{id}/ai/reply`
+
+**Request Body:**
+
+```json
+{
+  "sender_id": "user123"
+}
+```
 
 ### Sequential Thinking
 
