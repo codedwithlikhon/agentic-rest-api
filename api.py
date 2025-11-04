@@ -11,6 +11,7 @@ app = Flask(__name__)
 projects_db = {}
 chats_db = {}
 messages_db = {}
+users_db = {}
 
 # Mock authentication
 def token_required(f):
@@ -29,7 +30,17 @@ def generate_id(prefix):
 def get_pagination(page=1, limit=20):
     return {'page': page, 'limit': limit}
 
-MINIMAX_API_KEY = os.environ.get('MINIMAX_API_KEY', '')
+def get_user_from_token():
+    """Get the user ID from the request token (mock implementation)."""
+    token = request.headers.get('Authorization')
+    # In a real application, you would decode the JWT to get the user ID.
+    # For this example, we'll use a simple mapping.
+    # Let's assume the token is 'Bearer <user_id>'
+    if token and token.startswith('Bearer '):
+        return token.split(' ')[1]
+    return None
+
+MINIMAX_API_key = os.environ.get('MINIMAX_API_KEY', '')
 MINIMAX_API_URL = 'https://api.minimaxi.chat/v1/text/chatcompletion'
 
 def generate_ai_response(chat_id, conversation_history):
@@ -113,6 +124,10 @@ def list_projects():
 def create_project():
     data = request.get_json()
     
+    creator_id = get_user_from_token()
+    if not creator_id or creator_id not in users_db:
+        return jsonify({'error': 'Invalid or missing user token'}), 401
+
     if not data.get('name'):
         return jsonify({'error': 'Name is required'}), 400
     
@@ -122,6 +137,8 @@ def create_project():
         'name': data['name'],
         'description': data.get('description', ''),
         'status': 'active',
+        'members': [{'user_id': creator_id, 'role': 'owner'}],
+        'activity': [],
         'created_at': datetime.utcnow().isoformat() + 'Z',
         'updated_at': datetime.utcnow().isoformat() + 'Z',
         'metadata': data.get('metadata', {})
@@ -144,6 +161,19 @@ def update_project(id):
     project = projects_db.get(id)
     if not project:
         return jsonify({'error': 'Project not found'}), 404
+
+    user_id = get_user_from_token()
+    if not user_id:
+        return jsonify({'error': 'Invalid or missing user token'}), 401
+
+    user_role = ''
+    for member in project['members']:
+        if member['user_id'] == user_id:
+            user_role = member['role']
+            break
+
+    if user_role not in ['owner', 'editor']:
+        return jsonify({'error': 'Permission denied'}), 403
     
     data = request.get_json()
     project.update({
@@ -152,11 +182,30 @@ def update_project(id):
         'updated_at': datetime.utcnow().isoformat() + 'Z'
     })
     
+    record_activity(project, user_id, f"updated project details")
+
     return jsonify(project), 200
 
 @app.delete('/v1/projects/<id>')
 @token_required
 def delete_project(id):
+    project = projects_db.get(id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+
+    user_id = get_user_from_token()
+    if not user_id:
+        return jsonify({'error': 'Invalid or missing user token'}), 401
+
+    user_role = ''
+    for member in project['members']:
+        if member['user_id'] == user_id:
+            user_role = member['role']
+            break
+
+    if user_role != 'owner':
+        return jsonify({'error': 'Permission denied'}), 403
+
     if id in projects_db:
         del projects_db[id]
         return '', 204
@@ -196,6 +245,161 @@ def get_project_analytics(id):
     }
     
     return jsonify(analytics), 200
+
+# Users endpoints
+@app.get('/v1/users')
+@token_required
+def list_users():
+    return jsonify(list(users_db.values())), 200
+
+@app.post('/v1/users')
+@token_required
+def create_user():
+    data = request.get_json()
+
+    if not data.get('name') or not data.get('email'):
+        return jsonify({'error': 'Name and email are required'}), 400
+
+    user_id = generate_id('user')
+    user = {
+        'id': user_id,
+        'name': data['name'],
+        'email': data['email'],
+        'created_at': datetime.utcnow().isoformat() + 'Z'
+    }
+
+    users_db[user_id] = user
+    return jsonify(user), 201
+
+def record_activity(project, user_id, action):
+    """Record an activity in the project's activity log."""
+    activity = {
+        'id': generate_id('act'),
+        'user_id': user_id,
+        'action': action,
+        'timestamp': datetime.utcnow().isoformat() + 'Z'
+    }
+    project['activity'].append(activity)
+
+# Project Members endpoints
+@app.get('/v1/projects/<id>/members')
+@token_required
+def list_project_members(id):
+    project = projects_db.get(id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    return jsonify(project['members']), 200
+
+@app.post('/v1/projects/<id>/members')
+@token_required
+def add_project_member(id):
+    project = projects_db.get(id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+
+    requesting_user_id = get_user_from_token()
+    if not requesting_user_id:
+        return jsonify({'error': 'Invalid or missing user token'}), 401
+
+    user_role = ''
+    for member in project['members']:
+        if member['user_id'] == requesting_user_id:
+            user_role = member['role']
+            break
+
+    if user_role != 'owner':
+        return jsonify({'error': 'Permission denied'}), 403
+
+    data = request.get_json()
+    user_id = data.get('user_id')
+    role = data.get('role')
+
+    if not user_id or not role:
+        return jsonify({'error': 'user_id and role are required'}), 400
+
+    if user_id not in users_db:
+        return jsonify({'error': 'User not found'}), 404
+
+    if role not in ['editor', 'viewer']:
+        return jsonify({'error': 'Invalid role'}), 400
+
+    # Check if the user is already a member
+    for member in project['members']:
+        if member['user_id'] == user_id:
+            return jsonify({'error': 'User is already a member'}), 400
+
+    new_member = {'user_id': user_id, 'role': role}
+    project['members'].append(new_member)
+    record_activity(project, owner_id, f"added member {user_id} as {role}")
+
+    return jsonify(new_member), 201
+
+@app.put('/v1/projects/<id>/members/<user_id>')
+@token_required
+def update_project_member(id, user_id):
+    project = projects_db.get(id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+
+    requesting_user_id = get_user_from_token()
+    if not requesting_user_id:
+        return jsonify({'error': 'Invalid or missing user token'}), 401
+
+    user_role = ''
+    for member in project['members']:
+        if member['user_id'] == requesting_user_id:
+            user_role = member['role']
+            break
+
+    if user_role != 'owner':
+        return jsonify({'error': 'Permission denied'}), 403
+
+    data = request.get_json()
+    role = data.get('role')
+
+    if not role:
+        return jsonify({'error': 'role is required'}), 400
+
+    if role not in ['editor', 'viewer']:
+        return jsonify({'error': 'Invalid role'}), 400
+
+    for member in project['members']:
+        if member['user_id'] == user_id:
+            member['role'] = role
+            record_activity(project, owner_id, f"updated member {user_id}'s role to {role}")
+            return jsonify(member), 200
+
+    return jsonify({'error': 'Member not found'}), 404
+
+@app.delete('/v1/projects/<id>/members/<user_id>')
+@token_required
+def remove_project_member(id, user_id):
+    project = projects_db.get(id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+
+    requesting_user_id = get_user_from_token()
+    if not requesting_user_id:
+        return jsonify({'error': 'Invalid or missing user token'}), 401
+
+    user_role = ''
+    for member in project['members']:
+        if member['user_id'] == requesting_user_id:
+            user_role = member['role']
+            break
+
+    if user_role != 'owner':
+        return jsonify({'error': 'Permission denied'}), 403
+
+    for i, member in enumerate(project['members']):
+        if member['user_id'] == user_id:
+            if member['role'] == 'owner':
+                return jsonify({'error': 'Cannot remove the owner'}), 400
+            del project['members'][i]
+            record_activity(project, requesting_user_id, f"removed member {user_id}")
+            return '', 204
+
+    return jsonify({'error': 'Member not found'}), 404
 
 # Chats endpoints
 @app.get('/v1/chats')

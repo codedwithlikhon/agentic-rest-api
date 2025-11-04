@@ -159,6 +159,147 @@ paths:
         '200':
           description: Status updated
 
+  /v1/users:
+    get:
+      summary: List all users
+      operationId: listUsers
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+    post:
+      summary: Create a new user
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /v1/projects/{id}/members:
+    get:
+      summary: List project members
+      operationId: listProjectMembers
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of project members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProjectMember'
+    post:
+      summary: Add a member to a project
+      operationId: addProjectMember
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_id
+                - role
+              properties:
+                user_id:
+                  type: string
+                role:
+                  type: string
+                  enum: [editor, viewer]
+      responses:
+        '201':
+          description: Member added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectMember'
+
+  /v1/projects/{id}/members/{user_id}:
+    put:
+      summary: Update a project member's role
+      operationId: updateProjectMember
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - role
+              properties:
+                role:
+                  type: string
+                  enum: [editor, viewer]
+      responses:
+        '200':
+          description: Member updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectMember'
+    delete:
+      summary: Remove a member from a project
+      operationId: removeProjectMember
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Member removed
+
   /v1/projects/{id}/analytics:
     get:
       summary: Get project analytics
@@ -427,6 +568,41 @@ components:
       description: Bearer token for API authentication
 
   schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    ProjectMember:
+      type: object
+      properties:
+        user_id:
+          type: string
+        role:
+          type: string
+          enum: [owner, editor, viewer]
+
+    Activity:
+      type: object
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        action:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
     Project:
       type: object
       properties:
@@ -439,6 +615,14 @@ components:
         status:
           type: string
           enum: [active, archived, deleted]
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectMember'
+        activity:
+          type: array
+          items:
+            $ref: '#/components/schemas/Activity'
         created_at:
           type: string
           format: date-time
